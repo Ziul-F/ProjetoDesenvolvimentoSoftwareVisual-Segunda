@@ -1,0 +1,6 @@
+@GerenciadorMateriais_HostAddress = http://localhost:5073
+
+GET {{GerenciadorMateriais_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
