@@ -7,9 +7,8 @@ namespace GerenciadorMateriais
     {
         public DbSet<Produto> Produtos { get; set; }
 
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
-            optionsBuilder.UseSqlite("Data Source=Materiais.db");
         }
     }
 }
