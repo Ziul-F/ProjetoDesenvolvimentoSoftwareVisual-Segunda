@@ -135,20 +135,27 @@ app.MapGet("/movimentacoes", async (int usuarioId, AppDbContext db) =>
     return Results.Ok(movimentacoes);
 });
 
-app.MapPost("/movimentacoes/entrada", async (Movimentacao movimentacao, AppDbContext db) =>
+app.MapPost("/movimentacoes/entrada", async (MovimentacaoRequest request, AppDbContext db) =>
 {
-    if (movimentacao.QuantidadeMovimentada <= 0)
+    if (request.QuantidadeMovimentada <= 0)
         return Results.BadRequest("Quantidade deve ser maior que zero.");
 
-    var produto = await db.Produtos.FindAsync(movimentacao.ProdutoId);
+    var produto = await db.Produtos.FindAsync(request.ProdutoId);
     if (produto is null) return Results.NotFound("Produto não encontrado.");
 
-    var usuario = await db.Usuarios.FindAsync(movimentacao.UsuarioId);
+    var usuario = await db.Usuarios.FindAsync(request.UsuarioId);
     if (usuario is null) return Results.NotFound("Usuário não encontrado.");
 
-    produto.Quantidade += movimentacao.QuantidadeMovimentada;
-    movimentacao.Tipo = "Entrada";
-    movimentacao.DataHora = DateTime.Now;
+    produto.Quantidade += request.QuantidadeMovimentada;
+    
+    var movimentacao = new Movimentacao
+    {
+        ProdutoId = request.ProdutoId,
+        UsuarioId = request.UsuarioId,
+        QuantidadeMovimentada = request.QuantidadeMovimentada,
+        Tipo = "Entrada",
+        DataHora = DateTime.Now
+    };
 
     db.Movimentacoes.Add(movimentacao);
     await db.SaveChangesAsync();
@@ -156,23 +163,30 @@ app.MapPost("/movimentacoes/entrada", async (Movimentacao movimentacao, AppDbCon
     return Results.Created($"/movimentacoes/{movimentacao.Id}", movimentacao);
 });
 
-app.MapPost("/movimentacoes/saida", async (Movimentacao movimentacao, AppDbContext db) =>
+app.MapPost("/movimentacoes/saida", async (MovimentacaoRequest request, AppDbContext db) =>
 {
-    if (movimentacao.QuantidadeMovimentada <= 0)
+    if (request.QuantidadeMovimentada <= 0)
         return Results.BadRequest("Quantidade deve ser maior que zero.");
 
-    var produto = await db.Produtos.FindAsync(movimentacao.ProdutoId);
+    var produto = await db.Produtos.FindAsync(request.ProdutoId);
     if (produto is null) return Results.NotFound("Produto não encontrado.");
 
-    var usuario = await db.Usuarios.FindAsync(movimentacao.UsuarioId);
+    var usuario = await db.Usuarios.FindAsync(request.UsuarioId);
     if (usuario is null) return Results.NotFound("Usuário não encontrado.");
 
-    if (produto.Quantidade < movimentacao.QuantidadeMovimentada)
+    if (produto.Quantidade < request.QuantidadeMovimentada)
         return Results.BadRequest("Quantidade em estoque insuficiente.");
 
-    produto.Quantidade -= movimentacao.QuantidadeMovimentada;
-    movimentacao.Tipo = "Saída";
-    movimentacao.DataHora = DateTime.Now;
+    produto.Quantidade -= request.QuantidadeMovimentada;
+    
+    var movimentacao = new Movimentacao
+    {
+        ProdutoId = request.ProdutoId,
+        UsuarioId = request.UsuarioId,
+        QuantidadeMovimentada = request.QuantidadeMovimentada,
+        Tipo = "Saída",
+        DataHora = DateTime.Now
+    };
 
     db.Movimentacoes.Add(movimentacao);
     await db.SaveChangesAsync();
