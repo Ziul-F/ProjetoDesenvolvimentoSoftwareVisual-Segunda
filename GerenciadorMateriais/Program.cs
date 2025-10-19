@@ -25,65 +25,75 @@ app.UseHttpsRedirection();
 app.MapGet("/produtos", async (AppDbContext db) => await db.Produtos.ToListAsync());
 
 app.MapGet("/produtos/{id}", async (int id, AppDbContext db) =>
-    await db.Produtos.FindAsync(id)
-        is Produto produto
-            ? Results.Ok(produto)
-            : Results.NotFound());
+    await db.Produtos.FindAsync(id) is Produto produto ? Results.Ok(produto) : Results.NotFound());
 
 app.MapPost("/produtos", async (Produto produto, AppDbContext db) =>
 {
+    if (produto.Preco < 0 || produto.Quantidade < 0)
+        return Results.BadRequest("Preço e quantidade devem ser positivos.");
+
     db.Produtos.Add(produto);
     await db.SaveChangesAsync();
+
     return Results.Created($"/produtos/{produto.Id}", produto);
 });
 
 app.MapPut("/produtos/{id}", async (int id, Produto inputProduto, AppDbContext db) =>
 {
     var produto = await db.Produtos.FindAsync(id);
+    if (produto is null)
+        return Results.NotFound();
 
-    if (produto is null) return Results.NotFound();
+    if (inputProduto.Preco < 0 || inputProduto.Quantidade < 0)
+        return Results.BadRequest("Preço e quantidade devem ser positivos.");
 
     produto.Nome = inputProduto.Nome;
     produto.Preco = inputProduto.Preco;
     produto.Quantidade = inputProduto.Quantidade;
 
     await db.SaveChangesAsync();
+
     return Results.NoContent();
 });
 
-app.MapDelete("/produtos/{id}", async (int id, AppDbContext db) =>
+app.MapDelete("/produtos/{id}", async (int id, int usuarioId, AppDbContext db) =>
 {
-    if (await db.Produtos.FindAsync(id) is Produto produto)
-    {
-        db.Produtos.Remove(produto);
-        await db.SaveChangesAsync();
-        return Results.Ok(produto);
-    }
+    var usuario = await db.Usuarios.FindAsync(usuarioId);
+    if (usuario == null)
+        return Results.NotFound("Usuário não encontrado.");
 
-    return Results.NotFound();
+    if (usuario.Perfil != "Admin")
+        return Results.Forbid();
+
+    var produto = await db.Produtos.FindAsync(id);
+    if (produto == null)
+        return Results.NotFound();
+
+    db.Produtos.Remove(produto);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(produto);
 });
 
-// Endpoints de Usu�rios
+// Endpoints de Usuários
 app.MapGet("/usuarios", async (AppDbContext db) => await db.Usuarios.ToListAsync());
 
 app.MapGet("/usuarios/{id}", async (int id, AppDbContext db) =>
-    await db.Usuarios.FindAsync(id)
-        is Usuario usuario
-            ? Results.Ok(usuario)
-            : Results.NotFound());
+    await db.Usuarios.FindAsync(id) is Usuario usuario ? Results.Ok(usuario) : Results.NotFound());
 
 app.MapPost("/usuarios", async (Usuario usuario, AppDbContext db) =>
 {
     db.Usuarios.Add(usuario);
     await db.SaveChangesAsync();
+
     return Results.Created($"/usuarios/{usuario.Id}", usuario);
 });
 
 app.MapPut("/usuarios/{id}", async (int id, Usuario inputUsuario, AppDbContext db) =>
 {
     var usuario = await db.Usuarios.FindAsync(id);
-
-    if (usuario is null) return Results.NotFound();
+    if (usuario is null)
+        return Results.NotFound();
 
     usuario.Nome = inputUsuario.Nome;
     usuario.Login = inputUsuario.Login;
@@ -91,6 +101,7 @@ app.MapPut("/usuarios/{id}", async (int id, Usuario inputUsuario, AppDbContext d
     usuario.Perfil = inputUsuario.Perfil;
 
     await db.SaveChangesAsync();
+
     return Results.NoContent();
 });
 
@@ -102,25 +113,41 @@ app.MapDelete("/usuarios/{id}", async (int id, AppDbContext db) =>
         await db.SaveChangesAsync();
         return Results.Ok(usuario);
     }
-
     return Results.NotFound();
 });
 
+// Endpoints de Movimentações
+app.MapGet("/movimentacoes", async (int usuarioId, AppDbContext db) =>
+{
+    var usuario = await db.Usuarios.FindAsync(usuarioId);
+    if (usuario == null)
+        return Results.NotFound("Usuário não encontrado.");
 
-// Endpoints de Movimenta��es
-app.MapGet("/movimentacoes", async (AppDbContext db) =>
-    await db.Movimentacoes.Include(m => m.Produto).Include(m => m.Usuario).ToListAsync());
+    if (usuario.Perfil != "Admin")
+        return Results.Forbid();
+
+    var movimentacoes = await db.Movimentacoes
+        .Include(m => m.Produto)
+        .Include(m => m.Usuario)
+        .ToListAsync();
+
+    return Results.Ok(movimentacoes);
+});
 
 app.MapPost("/movimentacoes/entrada", async (Movimentacao movimentacao, AppDbContext db) =>
 {
+    if (movimentacao.QuantidadeMovimentada <= 0)
+        return Results.BadRequest("Quantidade deve ser maior que zero.");
+
     var produto = await db.Produtos.FindAsync(movimentacao.ProdutoId);
-    if (produto is null) return Results.NotFound("Produto n�o encontrado.");
+    if (produto is null)
+        return Results.NotFound("Produto não encontrado.");
 
     var usuario = await db.Usuarios.FindAsync(movimentacao.UsuarioId);
-    if (usuario is null) return Results.NotFound("Usu�rio n�o encontrado.");
+    if (usuario is null)
+        return Results.NotFound("Usuário não encontrado.");
 
     produto.Quantidade += movimentacao.QuantidadeMovimentada;
-
     movimentacao.Tipo = "Entrada";
     movimentacao.DataHora = DateTime.Now;
 
@@ -132,11 +159,16 @@ app.MapPost("/movimentacoes/entrada", async (Movimentacao movimentacao, AppDbCon
 
 app.MapPost("/movimentacoes/saida", async (Movimentacao movimentacao, AppDbContext db) =>
 {
+    if (movimentacao.QuantidadeMovimentada <= 0)
+        return Results.BadRequest("Quantidade deve ser maior que zero.");
+
     var produto = await db.Produtos.FindAsync(movimentacao.ProdutoId);
-    if (produto is null) return Results.NotFound("Produto n�o encontrado.");
+    if (produto is null)
+        return Results.NotFound("Produto não encontrado.");
 
     var usuario = await db.Usuarios.FindAsync(movimentacao.UsuarioId);
-    if (usuario is null) return Results.NotFound("Usu�rio n�o encontrado.");
+    if (usuario is null)
+        return Results.NotFound("Usuário não encontrado.");
 
     if (produto.Quantidade < movimentacao.QuantidadeMovimentada)
     {
@@ -144,8 +176,7 @@ app.MapPost("/movimentacoes/saida", async (Movimentacao movimentacao, AppDbConte
     }
 
     produto.Quantidade -= movimentacao.QuantidadeMovimentada;
-
-    movimentacao.Tipo = "Sa�da";
+    movimentacao.Tipo = "Saída";
     movimentacao.DataHora = DateTime.Now;
 
     db.Movimentacoes.Add(movimentacao);
@@ -154,5 +185,16 @@ app.MapPost("/movimentacoes/saida", async (Movimentacao movimentacao, AppDbConte
     return Results.Created($"/movimentacoes/{movimentacao.Id}", movimentacao);
 });
 
+// Endpoint de Login
+app.MapPost("/login", async (LoginRequest request, AppDbContext db) =>
+{
+    var usuario = await db.Usuarios
+        .FirstOrDefaultAsync(u => u.Login == request.Login && u.Senha == request.Senha);
+
+    if (usuario == null)
+        return Results.Unauthorized();
+
+    return Results.Ok(new { usuario.Id, usuario.Nome, usuario.Perfil });
+});
 
 app.Run();
