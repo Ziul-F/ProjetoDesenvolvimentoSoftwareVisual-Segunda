@@ -3,9 +3,9 @@
     public class Usuario
     {
         public int Id { get; set; }
-        public string Nome { get; set; }
-        public string Login { get; set; }
-        public string Senha { get; set; }
-        public string Perfil { get; set; } // "Admin" ou "Operacional"
+        public required string Nome { get; set; }
+        public required string Login { get; set; }
+        public required string Senha { get; set; }
+        public required string Perfil { get; set; } // "Admin" ou "Operacional"
     }
 }

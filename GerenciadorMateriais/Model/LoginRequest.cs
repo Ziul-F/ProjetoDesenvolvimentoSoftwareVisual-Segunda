@@ -1,4 +1,5 @@
-namespace GerenciadorMateriais.Model
+public class LoginRequest
 {
-    public record LoginRequest(string Login, string Senha);
+    public required string Login { get; set; }
+    public required string Senha { get; set; }
 }
